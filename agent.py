@@ -1,51 +1,68 @@
-from typing import List, Optional, Any, Dict
-from llama_index.llms.gemini import Gemini
-from llama_index.core.agent import ReActAgent
-from llama_index.core.tools import BaseTool, FunctionTool
-from llama_index.core.memory import ChatMemoryBuffer
-from llama_index.core import VectorStoreIndex, StorageContext
-from llama_index.embeddings.gemini import GeminiEmbedding
+import time
 import asyncio
-import os
-from config import GEMINI_API_KEY
+from typing import List, Optional
+from llama_index.core.agent import ReActAgent,AgentWorkflow,FunctionAgent
+from llama_index.core.tools import BaseTool
+from llama_index.llms.ollama import Ollama
+from llama_index.core.memory import ChatMemoryBuffer
+from settings import OLLAMA_URL
+from llama_index.core import set_global_handler
 
-class BasicAgent:
-    def __init__(self, role: str, rules: str, tools: Optional[List[BaseTool]] = None):
+set_global_handler("simple")
+
+
+class Agent:
+    def __init__(
+        self,
+        role: str,
+        rules: str,
+        tools: Optional[List[BaseTool]] = None,
+        model_name: str = "qwen3:1.7b",
+    ):
         self.role = role
         self.rules = rules
         self.tools = tools or []
 
-        # Initialize LLM
-        self.llm = Gemini(api_key=GEMINI_API_KEY, model_name="gemini-2.5-flash")
-
-        # Initialize memory with local in-memory vector store
-        try:
-            self.memory_index = VectorStoreIndex([], embed_model=GeminiEmbedding(api_key=GEMINI_API_KEY))
-        except Exception as e:
-            print(f"Warning: Could not initialize vector memory: {e}")
-            self.memory_index = None
-
-        self.chat_memory = ChatMemoryBuffer.from_defaults(token_limit=2000)
-
-        self.agent = ReActAgent(
-            tools=self.tools,
-            llm=self.llm,
-            memory=self.chat_memory,
-            verbose=True
+        self.llm = Ollama(
+            base_url=OLLAMA_URL,
+            model=model_name,
+            request_timeout=300.0,
+            additional_kwargs={"num_ctx": 8192, "num_predict": 512},
         )
 
-    async def run_prompt(self, task: str) -> str:
-        prompt = f"""
+        self.chat_memory = ChatMemoryBuffer.from_defaults(token_limit=4096)
 
-        Task: {task}
+        self.agent = FunctionAgent(
+            tools=self.tools,
+            llm=self.llm,
+            verbose=True,
+            memory=self.chat_memory,
+            system_prompt=self._build_system_prompt(),
+            streaming=True
+        )
+
+    def _build_system_prompt(self) -> str:
+        tools_info = ""
+        if self.tools:
+            tools_info = "\n".join(
+                [f"- {tool.metadata.name}: {tool.metadata.description}" for tool in self.tools]
+            )
+
+        return f"""
         Role: {self.role}
         Rules: {self.rules}
+        
+        You are an AI assistant equipped with specific tools.
 
-        Please complete this task using your available tools and knowledge.
-        Be thorough and provide a clear result.
+        Your Tools: 
+        {tools_info}
+
+        If the user asks "what tools do you have?", list the tools defined above.
+        If the user asks a question that requires a tool, use the tool directly via function calling.
         """
+        
+    async def work_until_done(self, task: str):
         try:
-            response = await self.agent.run(prompt)
-            return str(response)
+            return await self.agent.run(user_msg=task,memory=self.chat_memory)
         except Exception as e:
             return f"Error executing task: {str(e)}"

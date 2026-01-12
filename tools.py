@@ -3,6 +3,8 @@ from llama_index.core.tools import BaseTool, FunctionTool
 import subprocess
 import shlex
 import os
+import random
+
 
 def run_terminal_command(command: str) -> str:
     """
@@ -41,4 +43,16 @@ terminal_tool = FunctionTool.from_defaults(
     fn=run_terminal_command,
     name="run_terminal_command",
     description="Run all terminal commands with this tool."
+)
+
+
+def get_rand_number() -> str:
+    rand = str(random.randint(1, 1000))
+    print(f"Generated random number: {rand}")
+    return rand
+
+rand_number_tool = FunctionTool.from_defaults(
+    fn=get_rand_number,
+    name="get_random_number",
+    description="Generate a random number"
 )
