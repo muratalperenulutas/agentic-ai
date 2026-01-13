@@ -3,7 +3,8 @@
 import asyncio
 import sys
 from agent import Agent
-import tools
+from tools import rand_number_tool, doc_vector_tool
+from llm import ollama_llm
 
 
 async def main():
@@ -12,7 +13,8 @@ async def main():
     my_agent = Agent(
         role="System Assistant",
         rules="You are helpful.",
-        tools=[tools.rand_number_tool],
+        llm=ollama_llm,
+        tools=[rand_number_tool,doc_vector_tool],
     )
 
     try:

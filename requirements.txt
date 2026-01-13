@@ -1,3 +1,4 @@
 llama-index-llms-ollama==0.9.1
 llama-index-core==0.14.12
 dotenv==0.9.9
+llama-index-embeddings-ollama 0.8.6
