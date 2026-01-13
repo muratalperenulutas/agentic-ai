@@ -1,13 +1,14 @@
 from typing import List, Optional
 from llama_index.core.tools import BaseTool, FunctionTool
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
-from llama_index.core import Settings, VectorStoreIndex, SimpleDirectoryReader
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings, Document
+from llama_index.core.tools.types import AsyncBaseTool, ToolMetadata, ToolOutput
 from embedings import ollama_embedding
-from llm import ollama_llm
+from llm import ollama_embeding_llm
 import subprocess
 import shlex
 import os
 import random
+from llama_index.core.readers.base import BaseReader
 
 
 def run_terminal_command(command: str) -> str:
@@ -59,11 +60,14 @@ rand_number_tool = FunctionTool.from_defaults(
 
 
 def search_doc_with_citiation(query: str) -> str:
-    documents = SimpleDirectoryReader("./data").load_data()
-    index = VectorStoreIndex.from_documents(
-        documents, embed_model=ollama_embedding
-    )
-    query_engine = index.as_query_engine(similarity_top_k=3,llm=ollama_llm)
+    my_file_extractors = {
+        ".txt": LineNumberedReader(),
+    }
+    documents = SimpleDirectoryReader(
+        ".", file_extractor=my_file_extractors, recursive=True
+    ).load_data()
+    index = VectorStoreIndex.from_documents(documents, embed_model=ollama_embedding)
+    query_engine = index.as_query_engine(similarity_top_k=5, llm=ollama_embeding_llm)
     response = query_engine.query(query)
 
     final_output = f"{str(response)}\n\nSOURCES FOUND:"
@@ -80,3 +84,41 @@ doc_vector_tool = FunctionTool.from_defaults(
     name="search_doc_with_citiation",
     description="Search documents and returns the answer WITH page numbers.",
 )
+
+def read_file_context(file_path: str,start:int,end:int) -> str:
+    try:
+        if not os.path.exists(file_path):
+            return f"error file not dound -> {file_path}"
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        selected_lines = []
+        for i in range(start, end):
+            selected_lines.append(f"[L:{i+1}] {lines[i]}")
+
+        return "".join(selected_lines)
+
+    except Exception as e:
+        return f"Error while reading file: {str(e)}"
+    
+read_file_context_tool = FunctionTool.from_defaults(
+    fn=read_file_context,
+    name="read_file_context",
+    description="Read specific lines from a file given the start and end line numbers.",
+)    
+
+
+class LineNumberedReader(BaseReader):
+    def load_data(self, file, extra_info=None):
+        tagged_text = ""
+        file_path = str(file)
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            for i, line in enumerate(lines):
+                if line.strip():
+                    tagged_text += f"[L:{i+1}] {line}"
+
+        return [Document(text=tagged_text, metadata=extra_info or {})]
+
