@@ -1,3 +1,4 @@
+from asyncio.log import logger
 from typing import List, Optional
 from llama_index.core.tools import BaseTool, FunctionTool
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings, Document
@@ -121,4 +122,18 @@ class LineNumberedReader(BaseReader):
                     tagged_text += f"[L:{i+1}] {line}"
 
         return [Document(text=tagged_text, metadata=extra_info or {})]
+
+def list_files(path: str = ".") -> str:
+    """List all files in a directory."""
+    try:
+        files = os.listdir(path)
+        return "\n".join(files)
+    except Exception as e:
+        return f"Error listing files: {str(e)}"
+
+list_files_tool = FunctionTool.from_defaults(
+    fn=list_files,
+    name="list_files",
+    description="List files in the current directory or a specific path.",
+)
 
