@@ -3,7 +3,7 @@
 import asyncio
 import sys
 from agent import Agent
-from tools import rand_number_tool, doc_vector_tool, read_file_context_tool, terminal_tool, list_files_tool
+from tools import doc_vector_tool, read_file_context_tool, terminal_tool, create_file_tool
 from llm import ollama_llm
 from logger import logger, setup_logger
 
@@ -16,7 +16,7 @@ async def main():
             role="System Assistant",
             rules="You are helpful.",
             llm=ollama_llm,
-            tools=[rand_number_tool, doc_vector_tool, read_file_context_tool, terminal_tool, list_files_tool],
+            tools=[doc_vector_tool, read_file_context_tool, terminal_tool, create_file_tool],
         )
     except Exception as e:
         logger.critical(f"Failed to initialize Agent: {e}")

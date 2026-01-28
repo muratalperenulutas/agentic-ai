@@ -5,9 +5,7 @@ from llama_index.core.tools.types import AsyncBaseTool, ToolMetadata, ToolOutput
 from embedings import ollama_embedding
 from llm import ollama_embeding_llm
 import subprocess
-import shlex
 import os
-import random
 from llama_index.core.readers.base import BaseReader
 from logger import logger
 
@@ -19,14 +17,13 @@ def run_terminal_command(command: str) -> str:
     logger.info(f"Agent executing command: {command}")
 
     try:
-        # Parse command
-        parts = shlex.split(command)
-        if not parts:
+        if not command.strip():
             logger.warning("Agent attempted to run empty command")
             return "Empty command"
-        # Run the command
+            
+        # Run the command with shell=True to support redirection, pipes, etc.
         result = subprocess.run(
-            parts, capture_output=True, text=True, timeout=30, cwd=os.getcwd()
+            command, shell=True, executable='/bin/bash', capture_output=True, text=True, timeout=300, cwd=os.getcwd()
         )
 
         output = result.stdout
@@ -55,18 +52,6 @@ terminal_tool = FunctionTool.from_defaults(
     name="run_terminal_command",
     description="Run all terminal commands with this tool.",
 )
-
-
-def get_rand_number() -> str:
-    rand = str(random.randint(1, 1000))
-    logger.info(f"Generated random number: {rand}")
-    return rand
-
-
-rand_number_tool = FunctionTool.from_defaults(
-    fn=get_rand_number, name="get_random_number", description="Generate a random number"
-)
-
 
 def search_doc_with_citiation(query: str) -> str:
     logger.info(f"Searching documents with query: {query}")
@@ -142,21 +127,21 @@ class LineNumberedReader(BaseReader):
 
         return [Document(text=tagged_text, metadata=extra_info or {})]
 
-def list_files(path: str = ".") -> str:
-    """List all files in a directory."""
-    logger.info(f"Listing files in: {path}")
+def create_file(file_path: str, content: str) -> str:
+    """Create or overwrite a file with the given content."""
+    logger.info(f"Creating file: {file_path}")
     try:
-        files = os.listdir(path)
-        result = "\n".join(files)
-        logger.debug(f"Found {len(files)} files/dirs")
-        return result
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        logger.debug(f"Successfully wrote {len(content)} chars to {file_path}")
+        return f"File created successfully: {file_path}"
     except Exception as e:
-        logger.exception(f"Error listing files in {path}")
-        return f"Error listing files: {str(e)}"
+        logger.exception(f"Error creating file {file_path}")
+        return f"Error creating file: {str(e)}"
 
-list_files_tool = FunctionTool.from_defaults(
-    fn=list_files,
-    name="list_files",
-    description="List files in the current directory or a specific path.",
+create_file_tool = FunctionTool.from_defaults(
+    fn=create_file,
+    name="create_file",
+    description="Create or overwrite a file with the given content. Use this tool instead of shell commands to write files.",
 )
 
