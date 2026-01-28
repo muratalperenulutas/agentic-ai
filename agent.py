@@ -4,9 +4,11 @@ from typing import List, Optional
 from llama_index.core.agent import ReActAgent,AgentWorkflow,FunctionAgent
 from llama_index.core.tools import BaseTool
 from llama_index.core.memory import ChatMemoryBuffer
-from llama_index.core import set_global_handler
+from llama_index.core import set_global_handler, Settings
+from llama_index.core.callbacks import CallbackManager, TokenCountingHandler
 from llama_index.core.llms import LLM
 from logger import logger
+import tiktoken
 
 
 set_global_handler("simple")
@@ -25,6 +27,16 @@ class Agent:
         self.rules = rules
         self.tools = tools or []
         self.llm = llm
+
+        self.token_counter = TokenCountingHandler(
+            tokenizer=tiktoken.get_encoding("cl100k_base").encode
+        )
+        Settings.callback_manager = CallbackManager([self.token_counter])
+        
+        if self.llm:
+            self.llm.callback_manager = Settings.callback_manager
+
+        logger.debug("Token counter initialized with cl100k_base encoding")
 
         self.chat_memory = ChatMemoryBuffer.from_defaults(token_limit=4096)
         logger.debug("Chat memory buffer initialized")
@@ -68,10 +80,20 @@ class Agent:
     async def work_until_done(self, task: str):
         logger.info(f"Received new task: {task}")
         try:
+            self.token_counter.reset_counts()
             start_time = time.time()
+            
             response = await self.agent.run(user_msg=task,memory=self.chat_memory)
+            
             duration = time.time() - start_time
-            logger.info(f"Task completed in {duration:.2f} seconds")
+            total_tokens = self.token_counter.total_llm_token_count
+            prompt_tokens = self.token_counter.prompt_llm_token_count
+            completion_tokens = self.token_counter.completion_llm_token_count
+            speed = total_tokens / duration if duration > 0 else 0
+            
+            logger.info(f"Task Metrics --> Duration: {duration:.2f}s | Speed: {speed:.2f} tok/s")
+            logger.info(f"Token Usage  --> Total: {total_tokens} | Prompt: {prompt_tokens} | Completion: {completion_tokens}")
+            
             return response
         except Exception as e:
             logger.exception("Context-aware error in work_until_done")
