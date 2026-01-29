@@ -8,7 +8,7 @@ import subprocess
 import os
 from llama_index.core.readers.base import BaseReader
 from logger import logger
-
+from kanban import kanban_instance
 
 def run_terminal_command(command: str) -> str:
     """
@@ -144,4 +144,35 @@ create_file_tool = FunctionTool.from_defaults(
     name="create_file",
     description="Create or overwrite a file with the given content. Use this tool instead of shell commands to write files.",
 )
+
+
+
+add_task_tool = FunctionTool.from_defaults(
+    fn=kanban_instance.add_task,
+    name="add_task",
+    description="Add a new task to the project's todo list. Use this to plan future work or break down large tasks."
+)
+
+complete_task_tool = FunctionTool.from_defaults(
+    fn=kanban_instance.complete_current_task,
+    name="complete_task",
+    description="Mark the currently active task as done. You MUST call this with a summary result when you finish a task."
+)
+
+def ask_to_user(question: str) -> str:
+    """Ask a question to the user and return their response."""
+    logger.info(f"Asking user: {question}")
+    try:
+        response = input(f"{question}\nYour answer: ")
+        return response
+    except Exception as e:
+        logger.exception("Error asking user.")
+        return f"Error asking user: {str(e)}"
+
+ask_to_user_tool = FunctionTool.from_defaults(
+    fn=ask_to_user,
+    name="ask_to_user",
+    description="Ask a question to the user and get their input. Use this tool when you need clarification or additional information from the user."
+)    
+    
 
